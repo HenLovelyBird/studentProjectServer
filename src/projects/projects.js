@@ -1,30 +1,31 @@
 const express = require("express");
-const fs = require("fs");
+const {readFile, writeFile} = require("fs-extra");
 const path = require("path");
+const {check, validationResult, sanitize} = require("express-validator");
+// Bodies, params and queries must be validated with express-validator middleware
 const router = express.Router();
 const filePath = path.join(__dirname, "projects.json");
-const {validationResult, sanitize} = require("express-validator");
 
-// Bodies, params and queries must be validated with express-validator middleware
-
-
-const readFile = filePath => {
-    const buffer = fs.readFileSync(filePath);
-    const fileContent = buffer.toString();
-    return (JSON.parse(fileContent));
-};
+// const readFile = filePath => {
+//     const buffer = fs.readFileSync(filePath);
+//     const fileContent = buffer.toString();
+//     return (JSON.parse(fileContent));
+// };
 //req for projects i all
-router.get('/', (res) => {
+router.get('/', (req, res) => {
     const projectsArray = readFile(filePath);
+    // console.log(projectsArray);
     res.send(projectsArray);
 });
 //READ http://localhost:3000/projects/ to GET all the projects
 
 // req for particular project id number
-router.get('/:id', [sanitize ('ID').toInt()], (req, res) => {
-    const projectsArray = readFile(filePath);
+router.get('/:id', [sanitize("id").toInt()], async (req, res) => {
+    const buffer = await readFile(filePath);
+    const fileContent = buffer.toString();
+    const projectsArray = JSON.parse(fileContent);
     const findproject = projectsArray.find(
-        project => project.ID === req.params.id
+        project => project.id === req.params.id
     );
     // console.log(req.params.id);
     if (findproject){
@@ -34,40 +35,63 @@ router.get('/:id', [sanitize ('ID').toInt()], (req, res) => {
     }
 });// READ http://localhost:3000/projects/1 to GET a single user by id
 
-router.post('/', (req,res) => {  //in this POST I want to receive the entire obj array for a particular id and append it
-    const projectsArray = readFile(filePath);
+router.get("/", async (req, res, next) => {
+    try {
+      const buffer = await readFile(filePath);
+      const fileContent = buffer.toString();
+      const studentsArray = JSON.parse(fileContent);
+      if (req.query && req.query.name) {
+        const filteredStudents = studentsArray.filter(
+          user =>
+            user.hasOwnProperty("name") &&
+            user.name.toLowerCase() === req.query.name.toLowerCase()
+        );
+        res.send(filteredstudents);
+      } else {
+        res.send(studentsArray);
+      }
+    } catch (error) {
+      // if (error.code === "ENOENT") {
+      //   next("SERVER ERROR - FILE NOT FOUND");
+      // }
+      next(error);
+    }
+  }); // GET http:localhost:3000/users?name=john to LIST the users filtered by name
+
+router.post('/', async (req,res) => {  //in this POST I want to receive the entire obj array for a particular id and append it
+    const buffer = await readFile(filePath);
+    const fileContent = buffer.toString();
+    const usersArray = JSON.parse(fileContent);
     const newproject = {
         ...req.body, 
-        // {
-        //     "Name":"Andie Plankerton",
-        //     "Description":"sharing server space in small groups",
-        //     "Creation Date": 22112020,
-        //     "ID": 6,
-        //     "RepoURL":"github",
-        //     "LiveURL":"http://localhost:3000",
-        //     "StudentID": 6,
-        //     "Number of Projects": 442
-        // }
-        NumberOfProjects: Number()
+        id: projectsArray.length + 1, 
+        numberofprojects: 5,
+        creation: new Date(),
+        
     };
     projectsArray.push(newproject);
     fs.writeFileSync(filePath, JSON.stringify(projectsArray));
-    res.status(201).send(`${newproject.ID}`);
+    res.status(201).send(`${newproject.id}`);
 });// CREATE http://localhost:3000/projects/ to POST a single user
 
 
-router.put('/:id', (req, res)=> {
+router.put('/:id', async (req, res)=> {
     const modifyproject = req.body;
-    const projectsArray = readFile(filePath);
-    projectsArray[req.params.id -1] = modifyproject; //-1?
-    fs.writeFileSync(filePath, JSON.stringify(projectsArray));
+    const buffer = await readFile(filePath);
+    const fileContent = buffer.toString();
+    let projectsArray = JSON.parse(fileContent);
+    projectsArray[Number.parseInt(req.params.id) -1] = modifyproject; //-1?
+    await writeFile(filePath, JSON.stringify(projectsArray));
     res.send(modifyproject);
 });// PUT http://localhost:3000/projects/ID to UPDATE a single user
 
-router.delete('/:id', (req, res) => {
-    const projectsArray = readFile(filePath);
-    const keepprojects = projectsArray.filter(project => project.ID !== req.params.id);
-    fs.writeFileSync(filePath, JSON.stringify(keepprojects));
+router.delete('/:id', async (req, res) => {
+    const buffer = await readFile(filePath);
+    const fileContent = buffer.toString();
+    const projectsArray = JSON.parse(fileContent);
+    const keepProjects = projectsArray.filter(project => project.id !== req.params.id);
+    
+    await writeFile(filePath, JSON.stringify(keepProjects));
     res.status(204);
 }); // DELETE http://localhost:3000/projects/ to DELETE a single user
 
